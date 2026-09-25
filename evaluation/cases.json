@@ -1,0 +1,32 @@
+[
+  {
+    "id": "hybrid-retrieval",
+    "question": "Why combine dense retrieval with BM25?",
+    "expected_terms": ["dense retrieval", "BM25", "paraphrases", "keywords"]
+  },
+  {
+    "id": "rrf",
+    "question": "How does reciprocal-rank fusion combine ranked lists?",
+    "expected_terms": ["reciprocal-rank fusion", "rank", "weight"]
+  },
+  {
+    "id": "chunk-metadata",
+    "question": "Which metadata should be retained for PDF chunks?",
+    "expected_terms": ["source filename", "page number", "chunk index"]
+  },
+  {
+    "id": "grounded-generation",
+    "question": "How should retrieved passages be treated by the generation prompt?",
+    "expected_terms": ["untrusted reference data", "instructions", "cite"]
+  },
+  {
+    "id": "evaluation-metrics",
+    "question": "Which metrics can measure retrieval quality?",
+    "expected_terms": ["hit rate", "mean reciprocal rank", "citation precision"]
+  },
+  {
+    "id": "session-privacy",
+    "question": "How does the app protect uploaded documents and API keys?",
+    "expected_terms": ["current Streamlit session", "environment variables", "Streamlit secrets"]
+  }
+]

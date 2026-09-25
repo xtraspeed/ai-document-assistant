@@ -1,0 +1,26 @@
+# Secrets and local configuration
+.env
+.streamlit/secrets.toml
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Tests and tooling
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Streamlit/runtime data
+.streamlit/logs/
+data/uploads/
+*.db
+
+# IDE/OS
+.idea/
+.vscode/
+.DS_Store
