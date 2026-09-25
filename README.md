@@ -153,6 +153,12 @@ Optional secrets/settings:
 
 For a public portfolio demo, set a shared `APP_ACCESS_CODE` if the OpenAI budget is limited. The link remains external, but visitors need the code.
 
+## Troubleshooting
+
+### OpenAI reports no remaining credits
+
+OpenAI embeddings and chat generation require an active billing balance or API credits. If the sidebar reports that semantic retrieval is unavailable, add credits in the OpenAI billing settings and rebuild the index. The app intentionally falls back to keyword-only retrieval so the upload flow remains inspectable, but chat answers still require a usable OpenAI chat balance.
+
 ## Docker
 
 ```powershell

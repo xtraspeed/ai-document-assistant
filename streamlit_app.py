@@ -54,6 +54,26 @@ def _reset_index() -> None:
     _reset_conversation()
 
 
+def _friendly_vector_error(raw_error: str | None) -> str | None:
+    if not raw_error:
+        return None
+    lowered = raw_error.lower()
+    if "insufficient_quota" in lowered or "credit_balance_exhausted" in lowered:
+        return (
+            "OpenAI embeddings are unavailable because the account has no remaining credits. "
+            "Add credits and rebuild; keyword retrieval remains available."
+        )
+    if "rate limit" in lowered or "429" in lowered:
+        return (
+            "OpenAI embeddings are temporarily rate-limited. Wait and rebuild; "
+            "keyword retrieval remains available."
+        )
+    return (
+        "Semantic retrieval is unavailable. Verify OpenAI access and rebuild; "
+        "keyword retrieval remains available."
+    )
+
+
 def _build_index(payloads: list[FilePayload], settings: Settings, label: str) -> None:
     with st.spinner("Parsing, chunking, and indexing documents…"):
         ingestion = load_file_payloads(
@@ -99,7 +119,7 @@ def _build_index(payloads: list[FilePayload], settings: Settings, label: str) ->
 
         retriever = HybridRetriever(chunks, embeddings, top_k=settings.top_k)
         if retriever.vector_error:
-            index_warning = f"Semantic retrieval is unavailable: {retriever.vector_error}"
+            index_warning = _friendly_vector_error(retriever.vector_error)
 
         st.session_state["retriever"] = retriever
         st.session_state["ingestion_summary"] = {
