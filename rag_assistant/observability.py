@@ -14,6 +14,7 @@ def record_from_result(result: Any) -> dict[str, Any]:
         "prompt_tokens": result.prompt_tokens,
         "completion_tokens": result.completion_tokens,
         "standalone_query": result.standalone_query,
+        "generation_mode": result.generation_mode,
     }
 
 

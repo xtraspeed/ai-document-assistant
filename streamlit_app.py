@@ -113,8 +113,8 @@ def _build_index(payloads: list[FilePayload], settings: Settings, label: str) ->
                 index_warning = f"Embeddings could not be initialized: {type(exc).__name__}."
         else:
             index_warning = (
-                "No OpenAI key is configured; the index is keyword-only. "
-                "Add a key and rebuild for semantic retrieval and answers."
+                "No OpenAI key is configured; the index is keyword-only and answers "
+                "will use the clearly labelled extractive fallback."
             )
 
         retriever = HybridRetriever(chunks, embeddings, top_k=settings.top_k)
@@ -155,9 +155,11 @@ def _render_message(message: dict[str, Any]) -> None:
             _render_sources(message.get("sources", []))
             metrics = message.get("metrics", {})
             if metrics:
+                mode = metrics.get("generation_mode", "openai")
+                mode_label = "OpenAI" if mode == "openai" else "extractive fallback"
                 st.caption(
                     f"{metrics.get('retrieved_chunks', 0)} passages · "
-                    f"{metrics.get('latency_ms', 0):.0f} ms retrieval/generation"
+                    f"{metrics.get('latency_ms', 0):.0f} ms · {mode_label}"
                 )
 
 
@@ -178,10 +180,6 @@ def _handle_question(question: str, settings: Settings) -> None:
     if retriever is None:
         st.warning("Build a knowledge base before asking a question.")
         return
-    if not settings.has_api_key:
-        st.error("Add an OpenAI API key in the sidebar before asking questions.")
-        return
-
     history = list(st.session_state["messages"])
     try:
         with st.spinner("Searching the knowledge base and generating an answer…"):
@@ -217,7 +215,10 @@ def _render_sidebar(settings: Settings) -> None:
         if effective_key:
             st.success("OpenAI key is available for this session.")
         else:
-            st.info("Add an OpenAI key to enable semantic retrieval and answers.")
+            st.info(
+                "Add an OpenAI key for semantic retrieval and synthesized answers; "
+                "without one, the app uses keyword retrieval and labelled excerpts."
+            )
 
         if configured_settings.app_access_code:
             entered_code = st.text_input(

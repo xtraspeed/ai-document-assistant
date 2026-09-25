@@ -48,6 +48,13 @@ def _as_float(name: str, default: float, *, minimum: float, maximum: float) -> f
         return default
 
 
+def _as_bool(name: str, default: bool) -> bool:
+    value = _read_setting(name, default)
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
 @dataclass(frozen=True)
 class Settings:
     """Runtime settings for ingestion, retrieval, and generation."""
@@ -63,6 +70,7 @@ class Settings:
     max_chunks: int
     temperature: float
     app_access_code: str | None
+    allow_extractive_fallback: bool = True
 
     @property
     def has_api_key(self) -> bool:
@@ -96,4 +104,5 @@ class Settings:
             max_chunks=_as_int("MAX_CHUNKS", 6_000, minimum=1),
             temperature=_as_float("TEMPERATURE", 0.0, minimum=0.0, maximum=1.0),
             app_access_code=str(resolved_access_code) if resolved_access_code else None,
+            allow_extractive_fallback=_as_bool("ALLOW_EXTRACTIVE_FALLBACK", True),
         )

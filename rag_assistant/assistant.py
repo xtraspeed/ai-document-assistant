@@ -1,7 +1,8 @@
-"""Conversation-aware, grounded question answering."""
+"""Conversation-aware, grounded question answering with a safe degraded mode."""
 
 from __future__ import annotations
 
+import re
 import time
 from dataclasses import dataclass
 from typing import Any, Iterable
@@ -25,6 +26,7 @@ class AnswerResult:
     latency_ms: float
     prompt_tokens: int | None = None
     completion_tokens: int | None = None
+    generation_mode: str = "openai"
 
     def as_message(self) -> dict[str, Any]:
         return {
@@ -37,6 +39,7 @@ class AnswerResult:
                 "standalone_query": self.standalone_query,
                 "prompt_tokens": self.prompt_tokens,
                 "completion_tokens": self.completion_tokens,
+                "generation_mode": self.generation_mode,
             },
         }
 
@@ -86,8 +89,36 @@ def _usage(response: Any) -> tuple[int | None, int | None]:
     return None, None
 
 
+def _safe_fallback_notice(reason: str) -> str:
+    lowered = reason.lower()
+    if "credit" in lowered or "quota" in lowered or "insufficient" in lowered:
+        return (
+            "OpenAI credits are unavailable, so I am showing extractive evidence "
+            "instead of a synthesized answer."
+        )
+    if "auth" in lowered or "api key" in lowered or "unauthorized" in lowered:
+        return (
+            "OpenAI authentication is unavailable, so I am showing extractive evidence "
+            "instead of a synthesized answer."
+        )
+    if "rate" in lowered or "429" in lowered:
+        return (
+            "OpenAI is temporarily rate-limited, so I am showing extractive evidence "
+            "instead of a synthesized answer."
+        )
+    return (
+        "OpenAI generation is unavailable, so I am showing extractive evidence "
+        "instead of a synthesized answer."
+    )
+
+
 class RAGAssistant:
-    """Retrieve context and ask an OpenAI chat model to answer from it."""
+    """Retrieve context and ask an OpenAI chat model to answer from it.
+
+    When OpenAI is unavailable, the assistant can return clearly labelled source
+    excerpts instead. This keeps a public demo useful without silently pretending
+    that an extractive result is a generated answer.
+    """
 
     def __init__(
         self,
@@ -98,13 +129,14 @@ class RAGAssistant:
     ) -> None:
         self.retriever = retriever
         self.settings = settings
+        self.llm: Any | None = llm
+        self.generation_error: str | None = None
+
         if llm is not None:
-            self.llm = llm
             return
         if not settings.has_api_key:
-            raise AssistantError(
-                "An OpenAI API key is required for answer generation. Add it in the sidebar."
-            )
+            self.generation_error = "no OpenAI API key configured"
+            return
         try:
             from langchain_openai import ChatOpenAI
 
@@ -114,11 +146,11 @@ class RAGAssistant:
                 api_key=settings.openai_api_key,
             )
         except Exception as exc:
-            raise AssistantError(f"Could not initialize the OpenAI model: {exc}") from exc
+            self.generation_error = f"OpenAI initialization failed: {exc}"
 
     def _rewrite_query(self, question: str, history: Iterable[dict[str, str]]) -> str:
         history_text = _format_history(history)
-        if not history_text:
+        if not history_text or self.llm is None:
             return question.strip()
         messages = [
             SystemMessage(
@@ -149,6 +181,57 @@ class RAGAssistant:
             )
         return "\n\n---\n\n".join(sections)
 
+    @staticmethod
+    def _extractive_answer(question: str, chunks: list[RetrievedChunk], reason: str) -> str:
+        terms = {
+            term
+            for term in re.findall(r"[a-z0-9]+", question.lower())
+            if len(term) > 2
+        }
+        excerpts: list[str] = []
+        for index, chunk in enumerate(chunks, start=1):
+            text = re.sub(r"\s+", " ", chunk.document.page_content).strip()
+            sentences = [
+                sentence.strip()
+                for sentence in re.split(r"(?<=[.!?])\s+", text)
+                if sentence.strip()
+            ]
+            ranked = sorted(
+                enumerate(sentences),
+                key=lambda item: (
+                    -sum(term in item[1].lower() for term in terms),
+                    item[0],
+                ),
+            )
+            selected = [sentence for _, sentence in ranked if sentence]
+            selected = selected[:2] or ([text[:500]] if text else [])
+            for sentence in selected:
+                excerpts.append(f"- [S{index}] {sentence}")
+
+        if not excerpts:
+            excerpts.append("- No readable evidence excerpt was available.")
+        return (
+            f"{_safe_fallback_notice(reason)}\n\n"
+            "Relevant source excerpts:\n" + "\n".join(excerpts)
+        )
+
+    def _fallback_result(
+        self,
+        question: str,
+        standalone_query: str,
+        chunks: list[RetrievedChunk],
+        started: float,
+        reason: str,
+    ) -> AnswerResult:
+        return AnswerResult(
+            question=question,
+            standalone_query=standalone_query,
+            answer=self._extractive_answer(question, chunks, reason),
+            sources=chunks,
+            latency_ms=(time.perf_counter() - started) * 1_000,
+            generation_mode="extractive_fallback",
+        )
+
     def answer(
         self,
         question: str,
@@ -174,6 +257,21 @@ class RAGAssistant:
                 ),
                 sources=[],
                 latency_ms=(time.perf_counter() - started) * 1_000,
+                generation_mode="retrieval_only",
+            )
+
+        if self.llm is None:
+            if self.settings.allow_extractive_fallback:
+                return self._fallback_result(
+                    question,
+                    standalone_query,
+                    chunks,
+                    started,
+                    self.generation_error or "OpenAI generation unavailable",
+                )
+            raise AssistantError(
+                self.generation_error
+                or "OpenAI generation is unavailable and extractive fallback is disabled."
             )
 
         context = self._format_context(chunks)
@@ -200,6 +298,14 @@ class RAGAssistant:
         try:
             response = self.llm.invoke(messages)
         except Exception as exc:
+            if self.settings.allow_extractive_fallback:
+                return self._fallback_result(
+                    question,
+                    standalone_query,
+                    chunks,
+                    started,
+                    str(exc),
+                )
             raise AssistantError(f"OpenAI request failed: {exc}") from exc
 
         answer = _message_text(response).strip()
@@ -214,4 +320,5 @@ class RAGAssistant:
             latency_ms=(time.perf_counter() - started) * 1_000,
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,
+            generation_mode="openai",
         )

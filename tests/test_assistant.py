@@ -62,3 +62,35 @@ def test_assistant_rewrites_follow_up_and_cites_context():
     assert "[S1]" in result.answer
     assert result.sources[0].source == "deployment.md"
     assert llm.calls == 2
+
+
+def test_assistant_uses_labelled_extractive_fallback_without_openai():
+    retriever = HybridRetriever(
+        [
+            Document(
+                page_content="The deployment uses Streamlit Community Cloud. It is public.",
+                metadata={"source": "deployment.md", "page": 1, "chunk_index": 0},
+            )
+        ],
+        FakeEmbeddings(),
+        top_k=1,
+    )
+    settings = Settings(
+        openai_api_key=None,
+        chat_model="test-chat",
+        embeddings_model="test-embedding",
+        chunk_size=1_000,
+        chunk_overlap=150,
+        top_k=1,
+        max_file_size_mb=10,
+        max_files=10,
+        max_chunks=100,
+        temperature=0.0,
+        app_access_code=None,
+    )
+
+    result = RAGAssistant(retriever, settings).answer("Where is it deployed?")
+
+    assert result.generation_mode == "extractive_fallback"
+    assert "OpenAI" in result.answer
+    assert "[S1]" in result.answer

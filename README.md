@@ -63,6 +63,7 @@ Upload / sample documents
 - BM25 lexical retrieval for exact terms and rare identifiers.
 - Weighted RRF combines the two ranked lists without requiring score calibration.
 - A keyword-only fallback keeps the upload/index flow inspectable if embeddings are unavailable.
+- When OpenAI is unavailable, a clearly labelled extractive fallback returns the most relevant source excerpts without pretending to synthesize an answer.
 
 ### Answering
 
@@ -70,6 +71,7 @@ Upload / sample documents
 - Follow-up questions are rewritten into standalone search queries when conversation history exists.
 - The answer prompt treats retrieved text as untrusted reference data.
 - Answers must cite source labels such as `[S1]` and acknowledge insufficient evidence.
+- If the OpenAI account has no credits or is rate-limited, the app falls back to cited extractive excerpts so the public demo remains inspectable.
 
 ### Evaluation
 
@@ -144,7 +146,7 @@ Optional secrets/settings:
 
 | Name | Purpose | Default |
 |---|---|---|
-| `OPENAI_API_KEY` | OpenAI authentication | required for answers |
+| `OPENAI_API_KEY` | OpenAI authentication and synthesized answers | optional with fallback |
 | `OPENAI_CHAT_MODEL` | Chat model | `gpt-4o-mini` |
 | `OPENAI_EMBEDDINGS_MODEL` | Embedding model | `text-embedding-3-small` |
 | `APP_ACCESS_CODE` | Optional shared gate | disabled |
@@ -153,6 +155,7 @@ Optional secrets/settings:
 | `TOP_K` | Retrieved passages per question | `5` |
 | `MAX_FILE_SIZE_MB` | Per-file upload limit | `10` |
 | `MAX_FILES` | Files per session | `10` |
+| `ALLOW_EXTRACTIVE_FALLBACK` | Show cited excerpts when OpenAI is unavailable | `true` |
 
 For a public portfolio demo, set a shared `APP_ACCESS_CODE` if the OpenAI budget is limited. The link remains external, but visitors need the code.
 
@@ -160,7 +163,7 @@ For a public portfolio demo, set a shared `APP_ACCESS_CODE` if the OpenAI budget
 
 ### OpenAI reports no remaining credits
 
-OpenAI embeddings and chat generation require an active billing balance or API credits. If the sidebar reports that semantic retrieval is unavailable, add credits in the OpenAI billing settings and rebuild the index. The app intentionally falls back to keyword-only retrieval so the upload flow remains inspectable, but chat answers still require a usable OpenAI chat balance.
+OpenAI embeddings and chat generation require an active billing balance or API credits. If the sidebar reports that semantic retrieval is unavailable, add credits in the OpenAI billing settings and rebuild the index for full hybrid RAG. Until then, the app uses BM25 retrieval and a clearly labelled extractive fallback, so the public demo can still show retrieved evidence without making a paid API call.
 
 ## Docker
 
