@@ -1,5 +1,8 @@
 # AI Document Assistant
 
+**Live demo:** [ai-document-assistant-glearpxyg6v9m36arajubn.streamlit.app](https://ai-document-assistant-glearpxyg6v9m36arajubn.streamlit.app/)  
+**Source:** [github.com/xtraspeed/ai-document-assistant](https://github.com/xtraspeed/ai-document-assistant)
+
 A production-minded Retrieval-Augmented Generation (RAG) document assistant built with **Streamlit**, **LangChain**, and **OpenAI**.
 
 The application lets a user upload a private set of PDF, TXT, Markdown, or DOCX files, builds a per-session knowledge base, retrieves relevant passages with hybrid search, and generates grounded answers with inline source citations.
